@@ -14,7 +14,7 @@ from datetime import datetime
 app = Flask(__name__)
 
 VERIFY_TOKEN = 'purelux123'
-DETRACK_API_KEY = '337a57672f55b3d71d1ab5ea0adfd2c668d3fbff2ec10a35'
+WHATSAPP_TOKEN = os.environ.get('WHATSAPP_TOKEN')
 DETRACK_BASE_URL = 'https://app.detrack.com/api/v2/dn/jobs'
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
