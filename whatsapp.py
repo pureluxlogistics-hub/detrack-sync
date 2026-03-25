@@ -1,11 +1,70 @@
 from flask import Flask, request
 import requests
 import json
+import re
+import os
+import pickle
+import base64
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from google.auth.transport.requests import Request
+from datetime import datetime
 
 app = Flask(__name__)
 
-WHATSAPP_TOKEN = 'your_whatsapp_token_here'
 VERIFY_TOKEN = 'purelux123'
+DETRACK_API_KEY = '337a57672f55b3d71d1ab5ea0adfd2c668d3fbff2ec10a35'
+DETRACK_BASE_URL = 'https://app.detrack.com/api/v2/dn/jobs'
+SCOPES = ['https://www.googleapis.com/auth/calendar']
+
+def get_calendar_service():
+    creds = None
+    token_b64 = os.environ.get('TOKEN_PICKLE_B64')
+    if token_b64:
+        creds = pickle.loads(base64.b64decode(token_b64))
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+    service = build('calendar', 'v3', credentials=creds)
+    return service
+
+def create_calendar_event(job):
+    try:
+        service = get_calendar_service()
+        event = {
+            'summary': job.get('do_number', 'New Job'),
+            'location': job.get('address', ''),
+            'description': job.get('instructions', ''),
+            'start': {
+                'dateTime': job.get('date', '') + 'T' + job.get('job_time', '09:00') + ':00',
+                'timeZone': 'Australia/Sydney',
+            },
+            'end': {
+                'dateTime': job.get('date', '') + 'T' + job.get('job_time', '10:00') + ':00',
+                'timeZone': 'Australia/Sydney',
+            },
+        }
+        service.events().insert(calendarId='primary', body=event).execute()
+        print('Calendar event created!')
+    except Exception as e:
+        print('Calendar error:', e)
+
+def parse_job(text):
+    job = {}
+    for line in text.split('\n'):
+        line = line.strip()
+        if line.lower().startswith('name:'):
+            job['do_number'] = line.split(':', 1)[1].strip()
+        elif line.lower().startswith('date:'):
+            job['date'] = line.split(':', 1)[1].strip()
+        elif line.lower().startswith('time:'):
+            job['job_time'] = line.split(':', 1)[1].strip()
+        elif line.lower().startswith('pick up:'):
+            job['address'] = line.split(':', 1)[1].strip()
+        elif line.lower().startswith('instruction:'):
+            job['instructions'] = line.split(':', 1)[1].strip()
+    return job
 
 @app.route('/webhook', methods=['GET'])
 def verify():
@@ -19,7 +78,24 @@ def verify():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print('Received:', json.dumps(data, indent=2))
+    try:
+        messages = data['entry'][0]['changes'][0]['value']['messages']
+        for message in messages:
+            if message['type'] == 'text':
+                text = message['text']['body']
+                if 'name:' in text.lower() and 'date:' in text.lower():
+                    job = parse_job(text)
+                    if job:
+                        create_calendar_event(job)
+                        payload = {'data': job}
+                        response = requests.post(
+                            DETRACK_BASE_URL,
+                            json=payload,
+                            headers={'X-API-KEY': DETRACK_API_KEY}
+                        )
+                        print('Job created:', response.status_code, response.text)
+    except Exception as e:
+        print('Error:', e)
     return 'OK', 200
 
 if __name__ == '__main__':
