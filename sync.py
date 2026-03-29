@@ -1,4 +1,5 @@
 import pickle
+import base64
 import os
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -14,17 +15,13 @@ DETRACK_BASE_URL = 'https://app.detrack.com/api/v2/dn/jobs'
 
 def get_calendar_service():
     creds = None
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token_file:
-            creds = pickle.load(token_file)
+    token_b64 = os.environ.get('TOKEN_PICKLE_B64')
+    if token_b64:
+        token_data = base64.b64decode(token_b64)
+        creds = pickle.loads(token_data)
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
-            creds = flow.run_local_server(port=8080)
-        with open('token.pickle', 'wb') as token_file:
-            pickle.dump(creds, token_file)
     service = build('calendar', 'v3', credentials=creds)
     return service
 
