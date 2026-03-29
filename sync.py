@@ -31,7 +31,7 @@ def job_exists(do_number):
 
 def sync_jobs():
     service = get_calendar_service()
-    events_result = service.events().list(calendarId='primary', maxResults=10, orderBy='startTime', singleEvents=True, timeMin=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())).execute()
+    events_result = service.events().list(calendarId='primary', maxResults=50, orderBy='startTime', singleEvents=True, timeMin=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())).execute()
     events = events_result.get('items', [])
     for event in events:
         do_number = event.get('summary')
