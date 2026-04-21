@@ -3,12 +3,8 @@ import requests
 import json
 import re
 import os
-import pickle
-import base64
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
+from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
 from datetime import datetime
 
 app = Flask(__name__)
@@ -19,13 +15,9 @@ DETRACK_BASE_URL = 'https://app.detrack.com/api/v2/dn/jobs'
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 
 def get_calendar_service():
-    creds = None
-    token_b64 = os.environ.get('TOKEN_PICKLE_B64')
-    if token_b64:
-        creds = pickle.loads(base64.b64decode(token_b64))
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+    creds_json = json.loads(os.environ.get('CREDENTIALS_JSON'))
+    creds = service_account.Credentials.from_service_account_info(
+        creds_json, scopes=SCOPES)
     service = build('calendar', 'v3', credentials=creds)
     return service
 
